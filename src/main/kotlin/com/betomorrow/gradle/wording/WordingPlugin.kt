@@ -11,61 +11,59 @@ import org.gradle.api.Project
 class WordingPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
+        val wordingExtension = project.extensions.create(WORDING_EXTENSION_NAME, WordingPluginExtension::class.java)
 
-        with(project) {
-            extensions.create(WORDING_EXTENSION_NAME, WordingPluginExtension::class.java, project)
+        val downloadWordingTask = project.tasks.register("downloadWording", DownloadWordingTask::class.java) { t ->
+            t.group = GROUP
+            t.description = "Download translations from Google Sheets"
 
-            afterEvaluate { p ->
+            t.credentials.set(
+                wordingExtension.credentials.map { project.layout.projectDirectory.file(it) }
+            )
+            t.clientId.set(wordingExtension.clientId)
+            t.clientSecret.set(wordingExtension.clientSecret)
 
-                val wordingExtension = extensions.getByType(WordingPluginExtension::class.java)
+            t.fileId.set(wordingExtension.sheetId)
+            t.output.set(wordingExtension.wordingFile)
 
-                val downloadWordingTask = tasks.register("downloadWording", DownloadWordingTask::class.java) { t ->
-                    t.group = GROUP
-                    t.description =
-                        "Download translations to ${wordingExtension.wordingFile.relativeTo(project.projectDir)}"
-                    t.credentials = wordingExtension.credentials?.let { project.rootDir.resolve(it) }
-                    t.clientId = wordingExtension.clientId
-                    t.clientSecret = wordingExtension.clientSecret
+            t.outputs.upToDateWhen { false }
+        }
 
-                    t.fileId = wordingExtension.sheetId
-                    t.output = wordingExtension.wordingFile
-                    t.outputs.upToDateWhen { false }
-                }.get()
+        val updateWordingTask = project.tasks.register("updateWording") { t ->
+            t.group = GROUP
+            t.description = "Update all wording files"
 
-                val updateWordingTask = tasks.register("updateWording") { t ->
-                    t.group = GROUP
-                    t.description = "Update all wording files"
-                }.get()
-                updateWordingTask.mustRunAfter(downloadWordingTask)
+            t.mustRunAfter(downloadWordingTask)
+        }
 
-                wordingExtension.languages.forEach { language ->
-                    val outputFile = language.getOutputFile(wordingExtension.outputFormat)
-                    val task = p.tasks.register(
-                        "updateWording${language.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
-                        UpdateWordingTask::class.java
-                    ) { t ->
-                        t.group = GROUP
-                        t.description = "Update wording file ${outputFile.relativeTo(project.projectDir)}"
-                        t.skipHeaders = wordingExtension.skipHeaders
-                        t.source = wordingExtension.wordingFile
-                        t.output = outputFile
-                        t.outputFormat = wordingExtension.outputFormat
-                        t.keysColumn = wordingExtension.keysColumn
-                        t.column = language.column
-                        t.sheetNames = wordingExtension.sheetNames
-                        t.failOnMissingKeys = language.name == WordingLanguageExtension.DEFAULT_NAME
-                        t.addMissingKeys = wordingExtension.addMissingKeys
-                    }
-                    task.get().mustRunAfter(downloadWordingTask)
-                    updateWordingTask.dependsOn(task)
-                }
+        wordingExtension.languages.all { language ->
+            val outputFile = language.getOutputFile(wordingExtension.outputFormat)
+            val task = project.tasks.register(
+                "updateWording${language.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
+                UpdateWordingTask::class.java
+            ) { t ->
+                t.group = GROUP
+                t.description = "Update wording file for language: ${language.name}"
 
-                tasks.register("upgradeWording") { t ->
-                    t.group = GROUP
-                    t.description = "Download and update all wording files"
-                    t.dependsOn(downloadWordingTask, updateWordingTask)
-                }
+                t.skipHeaders.set(wordingExtension.skipHeaders)
+                t.source.set(wordingExtension.wordingFile)
+                t.output.set(outputFile)
+                t.outputFormat.set(wordingExtension.outputFormat)
+                t.keysColumn.set(wordingExtension.keysColumn)
+                t.column.set(language.column)
+                t.sheetNames.set(wordingExtension.sheetNames)
+                t.failOnMissingKeys.set(language.name == WordingLanguageExtension.DEFAULT_NAME)
+                t.addMissingKeys.set(wordingExtension.addMissingKeys)
+
+                t.mustRunAfter(downloadWordingTask)
             }
+            updateWordingTask.configure { it.dependsOn(task) }
+        }
+
+        project.tasks.register("upgradeWording") { t ->
+            t.group = GROUP
+            t.description = "Download and update all wording files"
+            t.dependsOn(downloadWordingTask, updateWordingTask)
         }
     }
 

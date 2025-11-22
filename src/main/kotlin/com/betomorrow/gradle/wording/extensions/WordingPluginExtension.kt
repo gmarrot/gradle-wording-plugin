@@ -1,42 +1,50 @@
 package com.betomorrow.gradle.wording.extensions
 
 import com.betomorrow.gradle.wording.domain.OutputFormat
-import org.gradle.api.Action
 import org.gradle.api.NamedDomainObjectContainer
-import org.gradle.api.Project
-import java.io.File
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFile
+import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import javax.inject.Inject
 
 const val WORDING_EXTENSION_NAME = "wording"
 
-open class WordingPluginExtension(val project: Project) {
+abstract class WordingPluginExtension @Inject constructor(
+    objects: ObjectFactory,
+    projectLayout: ProjectLayout,
+) {
+    abstract val credentials: Property<String>
+    abstract val clientId: Property<String>
+    abstract val clientSecret: Property<String>
 
-    var credentials: String? = null
-    var clientId: String? = null
-    var clientSecret: String? = null
+    abstract val sheetId: Property<String>
+    abstract val sheetNames: ListProperty<String>
 
-    lateinit var sheetId: String
-    var sheetNames: List<String> = emptyList()
+    abstract val skipHeaders: Property<Boolean>
 
-    var skipHeaders: Boolean = true
+    abstract val filename: Property<String>
 
-    var filename: String = "wording.xlsx"
+    abstract val keysColumn: Property<String>
 
-    var keysColumn: String = "A"
+    abstract val addMissingKeys: Property<Boolean>
 
-    var addMissingKeys: Boolean = false
+    abstract val outputFormat: Property<OutputFormat>
 
-    var outputFormat: OutputFormat = OutputFormat.ANDROID
+    val wordingFile: Provider<RegularFile> =
+        filename.map { projectLayout.projectDirectory.file(it) }
 
-    var languages: NamedDomainObjectContainer<WordingLanguageExtension> = project.container(WordingLanguageExtension::class.java) {
-        WordingLanguageExtension(it, project)
+    val languages: NamedDomainObjectContainer<WordingLanguageExtension> =
+        objects.domainObjectContainer(WordingLanguageExtension::class.java)
+
+    init {
+        sheetNames.empty()
+        skipHeaders.convention(true)
+        filename.convention("wording.xlsx")
+        keysColumn.convention("A")
+        addMissingKeys.convention(false)
+        outputFormat.convention(OutputFormat.ANDROID)
     }
-
-    fun languages(action: Action<NamedDomainObjectContainer<WordingLanguageExtension>>) {
-        action.execute(languages)
-    }
-
-    val wordingFile: File
-        get() {
-            return project.rootDir.resolve(filename)
-        }
 }

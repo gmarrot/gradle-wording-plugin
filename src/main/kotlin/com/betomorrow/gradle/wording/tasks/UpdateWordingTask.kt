@@ -5,55 +5,64 @@ import com.betomorrow.gradle.wording.domain.updater.WordingUpdaterFactory
 import com.betomorrow.gradle.wording.domain.xlsx.Column
 import com.betomorrow.gradle.wording.domain.xlsx.XlsxExtractor
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.lang.Exception
 import java.nio.file.Paths
+import javax.inject.Inject
 
-open class UpdateWordingTask : DefaultTask() {
+abstract class UpdateWordingTask : DefaultTask() {
 
-    @InputFile
-    lateinit var source: File
+    @get:InputFile
+    abstract val source: RegularFileProperty
 
-    @OutputFile
-    lateinit var output: File
+    @get:OutputFile
+    abstract val output: RegularFileProperty
 
-    @Input
-    var skipHeaders: Boolean = true
+    @get:Input
+    abstract val skipHeaders: Property<Boolean>
 
-    @Internal
-    lateinit var keysColumn: String
+    @get:Input
+    abstract val keysColumn: Property<String>
 
-    @Internal
-    lateinit var column: String
+    @get:Input
+    abstract val column: Property<String>
 
-    @Input
-    var sheetNames = emptyList<String>()
+    @get:Input
+    abstract val sheetNames: ListProperty<String>
 
-    @Input
-    var failOnMissingKeys = false
+    @get:Input
+    abstract val failOnMissingKeys: Property<Boolean>
 
-    @Input
-    var addMissingKeys = false
+    @get:Input
+    abstract val addMissingKeys: Property<Boolean>
 
-    @Input
-    var outputFormat = OutputFormat.ANDROID
+    @get:Input
+    abstract val outputFormat: Property<OutputFormat>
+
+    @get:Inject
+    abstract val layout: ProjectLayout
 
     @TaskAction
     fun update() {
-        val extractor = XlsxExtractor(source.absolutePath, Column(keysColumn), skipHeaders)
-        val updater = WordingUpdaterFactory().build(outputFormat, Paths.get(output.absolutePath))
+        val sourceFile = source.get().asFile
+        val outputFile = output.get().asFile
 
-        val wordings = extractor.extract(Column(column), sheetNames)
-        val updatedKeys = updater.update(wordings, addMissingKeys)
+        val extractor = XlsxExtractor(sourceFile.absolutePath, Column(keysColumn.get()), skipHeaders.get())
+        val updater = WordingUpdaterFactory().build(outputFormat.get(), Paths.get(outputFile.absolutePath))
+
+        val wordings = extractor.extract(Column(column.get()), sheetNames.get())
+        val updatedKeys = updater.update(wordings, addMissingKeys.get())
 
         val missingKeys = wordings.keys - updatedKeys
-        if (missingKeys.isNotEmpty() && failOnMissingKeys) {
-            throw MissingKeyException(missingKeys, output.relativeTo(project.rootDir))
+        if (missingKeys.isNotEmpty() && failOnMissingKeys.get()) {
+            throw MissingKeyException(missingKeys, outputFile.relativeTo(layout.projectDirectory.asFile))
         }
     }
 }

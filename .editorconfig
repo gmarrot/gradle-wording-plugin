@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+max_line_length = 150
+tab_width = 4
+trim_trailing_whitespace = true
+
+[*.bat]
+end_of_line = crlf
+
+[{*.kt,*.kts}]
+ij_kotlin_code_style_defaults = KOTLIN_OFFICIAL
+ij_kotlin_name_count_to_use_star_import = unset
+ij_kotlin_name_count_to_use_star_import_for_members = unset
+
+[*.md]
+trim_trailing_whitespace = false

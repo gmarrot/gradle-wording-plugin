@@ -1,67 +1,74 @@
 package com.betomorrow.gradle.wording.extensions
 
 import com.betomorrow.gradle.wording.domain.OutputFormat
-import org.gradle.api.Project
-import java.io.File
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFile
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import javax.inject.Inject
 
-open class WordingLanguageExtension(val name: String, val project: Project) {
+abstract class WordingLanguageExtension @Inject constructor(
+    val name: String,
+    private val projectLayout: ProjectLayout,
+) {
 
-    var output: String? = null
+    abstract val output: Property<String>
 
-    lateinit var column: String
+    abstract val column: Property<String>
 
     val isDefault: Boolean
         get() {
             return name == DEFAULT_NAME
         }
 
-    fun getOutputFile(format: OutputFormat) : File {
-        return when (format) {
-            OutputFormat.ANDROID -> getAndroidOutputFile()
-            else -> getSpringOutputFile()
+    fun getOutputFile(format: Provider<OutputFormat>): Provider<RegularFile> {
+        return format.flatMap { outputFormat ->
+            when (outputFormat) {
+                OutputFormat.ANDROID -> getAndroidOutputFile()
+                OutputFormat.SPRING -> getSpringOutputFile()
+            }
         }
     }
 
-    private fun getAndroidOutputFile(): File {
-        return when {
-            output != null -> {
-                val file = project.projectDir.resolve(output!!)
+    private fun getAndroidOutputFile(): Provider<RegularFile> {
+        return output
+            .map {
+                val file = projectLayout.projectDirectory.file(it).asFile
                 if (file.isDirectory) {
-                    file.resolve("strings.xml")
+                    projectLayout.projectDirectory.file("$it/strings.xml")
                 } else {
-                    file
+                    projectLayout.projectDirectory.file(it)
                 }
             }
+            .orElse(projectLayout.projectDirectory.file(getDefaultAndroidPath()))
+    }
 
-            name == DEFAULT_NAME -> {
-                project.projectDir.resolve("src/main/res/values/strings.xml")
-            }
-
-            else -> {
-                project.projectDir.resolve("src/main/res/values-$name/strings.xml")
-            }
-
+    private fun getDefaultAndroidPath(): String {
+        return if (name == DEFAULT_NAME) {
+            "src/main/res/values/strings.xml"
+        } else {
+            "src/main/res/values-$name/strings.xml"
         }
     }
 
-    private fun getSpringOutputFile(): File {
-        return when {
-            output != null -> {
-                val file = project.projectDir.resolve(output!!)
+    private fun getSpringOutputFile(): Provider<RegularFile> {
+        return output
+            .map {
+                val file = projectLayout.projectDirectory.file(it).asFile
                 if (file.isDirectory) {
-                    file.resolve("messages.properties")
+                    projectLayout.projectDirectory.file("$it/messages.properties")
                 } else {
-                    file
+                    projectLayout.projectDirectory.file(it)
                 }
             }
+            .orElse(projectLayout.projectDirectory.file(getDefaultSpringPath()))
+    }
 
-            name == DEFAULT_NAME -> {
-                project.projectDir.resolve("src/main/resources/messages.properties")
-            }
-
-            else -> {
-                project.projectDir.resolve("src/main/resources/messages_$name.properties")
-            }
+    private fun getDefaultSpringPath(): String {
+        return if (name == DEFAULT_NAME) {
+            "src/main/resources/messages.properties"
+        } else {
+            "src/main/resources/messages_$name.properties"
         }
     }
 

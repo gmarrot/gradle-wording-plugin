@@ -3,53 +3,61 @@ package com.betomorrow.gradle.wording.tasks
 import com.betomorrow.gradle.wording.infra.drive.DriveMimeType
 import com.betomorrow.gradle.wording.infra.drive.GoogleDrive
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
-import java.io.File
+import javax.inject.Inject
 
-open class DownloadWordingTask : DefaultTask() {
+abstract class DownloadWordingTask : DefaultTask() {
 
-    @Optional
-    @Input
-    var clientId: String? = null
+    @get:Optional
+    @get:Input
+    abstract val clientId: Property<String>
 
-    @Optional
-    @Input
-    var clientSecret: String? = null
+    @get:Optional
+    @get:Input
+    abstract val clientSecret: Property<String>
 
-    @Optional
-    @InputFile
-    var credentials: File? = null
+    @get:Optional
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val credentials: RegularFileProperty
 
-    @Internal
-    lateinit var fileId: String
+    @get:Input
+    abstract val fileId: Property<String>
 
-    @OutputFile
-    lateinit var output: File
+    @get:OutputFile
+    abstract val output: RegularFileProperty
+
+    @get:Inject
+    abstract val layout: ProjectLayout
 
     @TaskAction
     fun download() {
         val googleDrive = when {
-            clientId != null && clientSecret != null -> GoogleDrive(clientId, clientSecret, tokenDirectory)
-            credentials != null -> GoogleDrive(credentials, tokenDirectory)
+            clientId.isPresent && clientSecret.isPresent ->
+                GoogleDrive(clientId.get(), clientSecret.get(), tokenDirectory)
+
+            credentials.isPresent -> GoogleDrive(credentials.get().asFile, tokenDirectory)
             else -> GoogleDrive(tokenDirectory)
         }
 
         logger.info("download $fileId to $output")
-        googleDrive.downloadFile(fileId, DriveMimeType.XLSX, output)
+        googleDrive.downloadFile(fileId.get(), DriveMimeType.XLSX, output.get().asFile)
     }
 
-    val tokenDirectory: String
-        @Internal
+    private val tokenDirectory: String
         get() {
-            return project.projectDir
-                .resolve(".gradle")
-                .resolve("wording-plugin")
-                .resolve("tokens")
-                .toString()
+            return layout.projectDirectory
+                .dir(".gradle/wording-plugin/tokens")
+                .asFile
+                .absolutePath
         }
 }
