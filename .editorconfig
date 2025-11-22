@@ -20,3 +20,6 @@ ij_kotlin_name_count_to_use_star_import_for_members = unset
 
 [*.md]
 trim_trailing_whitespace = false
+
+[{*.yml,*.yaml}]
+indent_size = 2
